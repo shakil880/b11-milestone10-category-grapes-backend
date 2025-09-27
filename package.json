@@ -13,8 +13,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "express": "^5.1.0",
-    "mongodb": "^6.20.0",
+    "express": "^4.19.2",
+    "mongodb": "^6.3.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1"
   },
