@@ -519,7 +519,10 @@ process.on('SIGINT', async () => {
 
 run().catch(console.dir);
 
-app.listen(port, () => {
-  console.log(`Task Marketplace server is running on port ${port}`);
-  console.log(`API Documentation available at http://localhost:${port}`);
-});
+// app.listen(port, () => {
+//   console.log(`Task Marketplace server is running on port ${port}`);
+//   console.log(`API Documentation available at http://localhost:${port}`);
+// });
+
+
+module.exports = app;
