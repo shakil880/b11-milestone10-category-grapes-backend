@@ -14,40 +14,11 @@ const allowedOrigins = [
   process.env.FRONTEND_PROD_URL
 ].filter(Boolean); 
 
-
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    
-
-    if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
-      return callback(null, true);
-    }
-    
-    return callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-  optionsSuccessStatus: 200
+  origin: allowedOrigins,
+  credentials: true
 }));
-app.use(express.json({ limit: '10mb' }));
-
-app.use((req, res, next) => {
-  req.setTimeout(30000, () => {
-    res.status(408).json({ message: 'Request timeout' });
-  });
-  next();
-});
-
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  next();
-});
+app.use(express.json());
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@${process.env.DB_CLUSTER}/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -57,13 +28,7 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  },
-
-  connectTimeoutMS: 10000, // 10 seconds
-  socketTimeoutMS: 30000,  // 30 seconds
-  maxPoolSize: 10,
-  retryWrites: true,
-  retryReads: true
+  }
 });
 
 async function run() {
@@ -75,48 +40,6 @@ async function run() {
     const tasksCollection = database.collection('tasks');
     const bidsCollection = database.collection('bids');
 
-    // Health check and root routes
-    app.get('/', (req, res) => {
-      res.json({ 
-        message: 'TaskMarket API is running successfully!',
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        endpoints: {
-          tasks: '/tasks',
-          featuredTasks: '/tasks/featured',
-          bids: '/bids',
-          stats: '/stats'
-        }
-      });
-    });
-
-
-    app.get('/favicon.ico', (req, res) => {
-      res.status(204).send();
-    });
-    
-    app.get('/favicon.png', (req, res) => {
-      res.status(204).send();
-    });
-
-
-    app.get('/health', async (req, res) => {
-      try {
-        await database.admin().ping();
-        res.json({
-          status: 'healthy',
-          database: 'connected',
-          timestamp: new Date().toISOString()
-        });
-      } catch (error) {
-        res.status(503).json({
-          status: 'unhealthy',
-          database: 'disconnected',
-          error: error.message,
-          timestamp: new Date().toISOString()
-        });
-      }
-    });
 
     // Get all tasks
     app.get('/tasks', async (req, res) => {
@@ -576,73 +499,27 @@ async function run() {
       res.status(500).send({ message: 'Internal server error', error: err.message });
     });
 
-    // Global error handling middleware
-    app.use((error, req, res, next) => {
-      console.error('Global error handler:', error);
-      res.status(500).json({
-        message: 'Internal server error',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
-      });
-    });
-
     // 404 handler for unknown routes
     app.use('*', (req, res) => {
-      res.status(404).json({ 
-        message: 'Route not found',
-        path: req.originalUrl,
-        method: req.method
-      });
+      res.status(404).send({ message: 'Route not found' });
     });
 
   } catch (error) {
     console.error('Error connecting to MongoDB:', error);
-    // Don't exit the process, just log the error and continue
-    // This prevents the server from crashing
-    console.log('Server will continue running without database connection');
+    process.exit(1);
   }
 }
 
-// Graceful shutdown handlers
+// Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('Received SIGINT. Shutting down gracefully...');
-  try {
-    await client.close();
-    console.log('MongoDB connection closed.');
-  } catch (error) {
-    console.error('Error closing MongoDB connection:', error);
-  }
+  console.log('Shutting down gracefully...');
+  await client.close();
   process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  console.log('Received SIGTERM. Shutting down gracefully...');
-  try {
-    await client.close();
-    console.log('MongoDB connection closed.');
-  } catch (error) {
-    console.error('Error closing MongoDB connection:', error);
-  }
-  process.exit(0);
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  // Don't exit the process, just log the error
-});
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  // Don't exit the process, just log the error
 });
 
 run().catch(console.dir);
 
-// app.listen(port, () => {
-//   console.log(`Task Marketplace server is running on port ${port}`);
-//   console.log(`API Documentation available at http://localhost:${port}`);
-// });
-
-
-module.exports = app;
+app.listen(port, () => {
+  console.log(`Task Marketplace server is running on port ${port}`);
+  console.log(`API Documentation available at http://localhost:${port}`);
+});
