@@ -20,6 +20,29 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Add root route OUTSIDE the database connection
+app.get('/', (req, res) => {
+  res.json({
+    message: 'TaskMarket API is running successfully!',
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      tasks: '/tasks',
+      featuredTasks: '/tasks/featured',
+      bids: '/bids',
+      stats: '/stats'
+    }
+  });
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@${process.env.DB_CLUSTER}/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -369,30 +392,6 @@ async function run() {
       }
     });
 
-    // Root endpoint
-    app.get('/', (req, res) => {
-      res.send(`
-        <h1>Task Marketplace API</h1>
-        <p>Backend server is running successfully!</p>
-        <h3>Available Endpoints:</h3>
-        <ul>
-          <li>GET /tasks - Get all tasks</li>
-          <li>GET /tasks/featured - Get featured tasks</li>
-          <li>GET /tasks/:id - Get task by ID</li>
-          <li>GET /my-tasks/:email - Get tasks by user email</li>
-          <li>POST /tasks - Create new task</li>
-          <li>PUT /tasks/:id - Update task</li>
-          <li>DELETE /tasks/:id - Delete task</li>
-          <li>GET /bids/:taskId - Get bids for task</li>
-          <li>GET /my-bids/:email - Get bids by user</li>
-          <li>POST /bids - Create new bid</li>
-          <li>PATCH /bids/:id/status - Update bid status</li>
-          <li>GET /stats - Get platform statistics</li>
-          <li>GET /search/tasks - Search tasks</li>
-        </ul>
-      `);
-    });
-
     // ============== SAMPLE DATA SEEDING ==============
     
     // Seed sample data (only if collections are empty)
@@ -506,7 +505,10 @@ async function run() {
 
   } catch (error) {
     console.error('Error connecting to MongoDB:', error);
-    process.exit(1);
+    // Don't exit in serverless environment, just log the error
+    if (process.env.NODE_ENV !== 'production') {
+      process.exit(1);
+    }
   }
 }
 
@@ -517,9 +519,16 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
+// Initialize database connection
 run().catch(console.dir);
 
-app.listen(port, () => {
-  console.log(`Task Marketplace server is running on port ${port}`);
-  console.log(`API Documentation available at http://localhost:${port}`);
-});
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(port, () => {
+    console.log(`Task Marketplace server is running on port ${port}`);
+    console.log(`API Documentation available at http://localhost:${port}`);
+  });
+}
+
+// Export for Vercel serverless
+module.exports = app;
